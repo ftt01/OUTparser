@@ -25,12 +25,12 @@
 
 package org.altervista.growworkinghard.jswmm;
 
+import org.altervista.growworkinghard.jswmm.SWMMobjects.SWMMhydraulics.SWMMjunction;
+
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,11 +40,26 @@ import static java.util.Arrays.copyOfRange;
 public class OUTparser {
 
     private File outFile;
-    //private FileInputStream outStream;
     private byte[] fullByteFile;
     private int currentOffset;
     private byte[] currentBuffer;
     private static final int recordSize = 4;
+
+    private int identifyingNumberTop;
+    private int versionSWMMNumber;
+    private int flowUnits;
+    private int numberOfSubcatchments;
+    private int numberOfNodes;
+    private int numberOfLinks;
+    private int numberOfPollutants;
+
+    private int positionIDnames;
+    private int positionProperties;
+    private int positionComputedResults;
+
+    private int numberOfReportedPeriod;
+    private int errorCode;
+    private int identifyingNumberBottom;
 
     public OUTparser(File outFile)
             throws IOException {
@@ -66,8 +81,7 @@ public class OUTparser {
     public LinkedHashMap<List<String>, List<List<Object>>> reader()
             throws IOException {
 
-        LinkedHashMap<List<String>, List<List<Object>>> table =
-                new LinkedHashMap<>();
+        LinkedHashMap<List<String>, List<List<Object>>> table = new LinkedHashMap<>();
 
         // Closing Records
         closingRecordsReader();
@@ -90,48 +104,48 @@ public class OUTparser {
         // Computed Results
         computedResultsReader();
 
-/*
-        try {
-            closeFile();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-*/
-
         return table;
     }
-
-/*    private void closeFile() throws IOException {
-        outStream.close();
-    }*/
 
     private void openingRecordsReader()
             throws IOException {
 
+        currentOffset = 0;
+
         /**
-         * Read the engine number equal to version
+         * Read the identifying number at top
          */
-        currentOffset = fullByteFile.length - 6*recordSize;
+        identifyingNumberTop = readByteInt();
+
+        /**
+         * Read the version number of SWMM engine
+         */
+        versionSWMMNumber = readByteInt();
 
         /**
          * Read the code number for the flow units
          */
+        flowUnits = readByteInt();
 
         /**
          * Read the number of subcatchments reported
          */
+        numberOfSubcatchments = readByteInt();
 
         /**
          * Read the number of nodes reported
          */
+        numberOfNodes = readByteInt();
 
         /**
          * Read the number of links reported
          */
+        numberOfLinks = readByteInt();
 
         /**
          * Read the number of pollutants reported
          */
+        numberOfPollutants = readByteInt();
     }
 
     private void objectIDReader() {
@@ -156,37 +170,72 @@ public class OUTparser {
 
     private void closingRecordsReader() {
 
+        currentOffset = fullByteFile.length - 6*recordSize;
+
+        /**
+         * Position of the Object ID Names section
+         */
+        positionIDnames = readByteInt();
+
+        /**
+         * Position of the Object Properties section
+         */
+        positionProperties = readByteInt();
+
+        /**
+         * Position of the Object ID Names section
+         */
+        positionComputedResults = readByteInt();
+
+        /**
+         * Position of the Object ID Names section
+         */
+        numberOfReportedPeriod = readByteInt();
+
+        /**
+         * Position of the Object ID Names section
+         * TODO{error code management}
+         */
+        errorCode = readByteInt();
+
+        /**
+         * Read the identifying number at the bottom
+         */
+        identifyingNumberBottom = readByteInt();
     }
 
-    private int readByteInt(int offset, int readingSize) {
-        currentBuffer = copyOfRange(fullByteFile, offset, offset + readingSize);
+    private int readByteInt() {
+        currentBuffer = copyOfRange(fullByteFile, currentOffset, currentOffset + recordSize);
+        currentOffset += recordSize;
 
         return ByteBuffer.wrap(currentBuffer).order(ByteOrder.LITTLE_ENDIAN).getInt();
     }
 
-    private Double readByteDouble(int offset, int readingSize) {
-        currentBuffer = copyOfRange(fullByteFile, offset, offset + readingSize);
+    private Double readByteDouble() {
+        currentBuffer = copyOfRange(fullByteFile, currentOffset, currentOffset + recordSize);
+        currentOffset += recordSize;
 
         return ByteBuffer.wrap(currentBuffer).order(ByteOrder.LITTLE_ENDIAN).getDouble();
     }
 
-    private Character readByteChar(int offset, int readingSize) {
-        currentBuffer = copyOfRange(fullByteFile, offset, offset + readingSize);
+    private Character readByteChar() {
+        currentBuffer = copyOfRange(fullByteFile, currentOffset, currentOffset + recordSize/4);
+        currentOffset += recordSize/4;
+
         return ByteBuffer.wrap(currentBuffer).order(ByteOrder.LITTLE_ENDIAN).getChar();
     }
 
-    private String readByteString(int offset, int readingSize) {
+    private String readByteString(int readingSize) {
         String string = null;
-        int relativeOffset = offset + readingSize;
         for(int i=0; i<readingSize; i++) {
-            string += readByteChar(relativeOffset, recordSize);
+            string += readByteChar();
         }
         return string;
     }
 
     private String readID(int offset, int readingSize) {
-        int IDlength = readByteInt(offset,readingSize);
-        return readByteString(offset+readingSize, IDlength);
+        int IDlength = readByteInt();
+        return readByteString(IDlength);
     }
 
 }
