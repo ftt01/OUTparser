@@ -27,27 +27,38 @@ package org.altervista.growworkinghard.jswmm;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.List;
+
+import static java.util.Arrays.copyOfRange;
 
 public class OUTparser {
 
     private File outFile;
-    private FileInputStream outStream;
+    //private FileInputStream outStream;
+    private byte[] fullByteFile;
+    private int currentOffset;
+    private byte[] currentBuffer;
+    private static final int recordSize = 4;
 
     public OUTparser(File outFile)
-            throws FileNotFoundException {
+            throws IOException {
+
         this.outFile = outFile;
-        outStream = new FileInputStream(this.outFile);
+        //outStream = new FileInputStream(this.outFile);
+        fullByteFile = Files.readAllBytes(outFile.toPath());
     }
 
     public void setFile(File outFile){
         this.outFile = outFile;
     }
 
-    public File getFile(File outFile){
+    public File getFile(){
         return this.outFile;
     }
 
@@ -57,6 +68,9 @@ public class OUTparser {
 
         LinkedHashMap<List<String>, List<List<Object>>> table =
                 new LinkedHashMap<>();
+
+        // Closing Records
+        closingRecordsReader();
 
         // Opening Records
         openingRecordsReader();
@@ -76,27 +90,29 @@ public class OUTparser {
         // Computed Results
         computedResultsReader();
 
-        // Closing Records
-        closingRecordsReader();
-
+/*
         try {
             closeFile();
         } catch (IOException e) {
             e.printStackTrace();
         }
+*/
 
         return table;
     }
 
-    private void closeFile() throws IOException {
+/*    private void closeFile() throws IOException {
         outStream.close();
-    }
+    }*/
 
-    private void openingRecordsReader() {
+    private void openingRecordsReader()
+            throws IOException {
+
         /**
          * Read the engine number equal to version
          */
-        
+        currentOffset = fullByteFile.length - 6*recordSize;
+
         /**
          * Read the code number for the flow units
          */
@@ -140,6 +156,37 @@ public class OUTparser {
 
     private void closingRecordsReader() {
 
+    }
+
+    private int readByteInt(int offset, int readingSize) {
+        currentBuffer = copyOfRange(fullByteFile, offset, offset + readingSize);
+
+        return ByteBuffer.wrap(currentBuffer).order(ByteOrder.LITTLE_ENDIAN).getInt();
+    }
+
+    private Double readByteDouble(int offset, int readingSize) {
+        currentBuffer = copyOfRange(fullByteFile, offset, offset + readingSize);
+
+        return ByteBuffer.wrap(currentBuffer).order(ByteOrder.LITTLE_ENDIAN).getDouble();
+    }
+
+    private Character readByteChar(int offset, int readingSize) {
+        currentBuffer = copyOfRange(fullByteFile, offset, offset + readingSize);
+        return ByteBuffer.wrap(currentBuffer).order(ByteOrder.LITTLE_ENDIAN).getChar();
+    }
+
+    private String readByteString(int offset, int readingSize) {
+        String string = null;
+        int relativeOffset = offset + readingSize;
+        for(int i=0; i<readingSize; i++) {
+            string += readByteChar(relativeOffset, recordSize);
+        }
+        return string;
+    }
+
+    private String readID(int offset, int readingSize) {
+        int IDlength = readByteInt(offset,readingSize);
+        return readByteString(offset+readingSize, IDlength);
     }
 
 }
